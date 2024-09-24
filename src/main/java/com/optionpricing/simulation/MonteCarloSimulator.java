@@ -102,20 +102,21 @@ public class MonteCarloSimulator extends Task<Double> {
                 double payoffSum = 0.0;
                 PathGenerator pathGenerator = new PathGenerator(marketData, option, 100);
 
+                double dt = option.getMaturity() / 100.0;
+                double[] path = new double[101]; // Reuse the same array for the path
+
                 for (int j = 0; j < simulationsForThisThread; j++) {
                     // Check if the task has been cancelled
                     if (isCancelled()) {
                         break;
                     }
-                    // Time step for the simulation
-                    double dt = option.getMaturity() / 100.0;
                     // Generate a simulated price path
-                    double[] path = pathGenerator.generatePricePath(100, dt);
+                    pathGenerator.generatePricePath(path, dt);
                     // Calculate the payoff for this path
                     double payoff = calculatePayoff(path);
                     payoffSum += payoff;
 
-                    // Update the progress
+                    // Update the progress less frequently to reduce overhead
                     int completed = simulationsCompleted.incrementAndGet();
                     if (completed % Math.max(1, numSimulations / 100) == 0 || completed == numSimulations) { // Update progress at 1% increments
                         updateProgress(completed, numSimulations);
@@ -192,31 +193,47 @@ public class MonteCarloSimulator extends Task<Double> {
             }
         }
 
-        // Synchronized lists to store simulated price paths and corresponding cash flows
-        List<double[]> pricePaths = Collections.synchronizedList(new ArrayList<>(numSimulations));
-        List<double[]> cashFlows = Collections.synchronizedList(new ArrayList<>(numSimulations));
+        int simulationsPerThread = numSimulations / threadPoolSize;
+        int remainingSimulations = numSimulations % threadPoolSize;
+
+        // Preallocate arrays for price paths and cash flows
+        double[][] pricePaths = new double[numSimulations][numTimeSteps + 1];
+        double[][] cashFlows = new double[numSimulations][numTimeSteps + 1];
 
         List<Callable<Void>> tasks = new ArrayList<>();
         AtomicInteger simulationsCompleted = new AtomicInteger(0);
 
-        // Create simulation tasks
-        for (int i = 0; i < numSimulations; i++) {
-            tasks.add(() -> {
-                // Check if the task has been cancelled
-                if (isCancelled()) {
-                    return null;
-                }
-                // Generate a simulated price path
-                PathGenerator pathGenerator = new PathGenerator(marketData, option, numTimeSteps);
-                double[] path = pathGenerator.generatePricePath(numTimeSteps, dt);
-                double[] cf = new double[numTimeSteps + 1];
-                pricePaths.add(path);
-                cashFlows.add(cf);
+        int simulationIndex = 0;
 
-                // Update the progress
-                int completed = simulationsCompleted.incrementAndGet();
-                if (completed % Math.max(1, numSimulations / 100) == 0 || completed == numSimulations) { // Update progress at 1% increments
-                    updateProgress(completed, numSimulations);
+        // Create simulation tasks for each thread
+        for (int i = 0; i < threadPoolSize; i++) {
+            final int startSimulation = simulationIndex;
+            final int simulationsForThisThread = simulationsPerThread + (i < remainingSimulations ? 1 : 0);
+            simulationIndex += simulationsForThisThread;
+
+            tasks.add(() -> {
+                PathGenerator pathGenerator = new PathGenerator(marketData, option, numTimeSteps);
+                double[] path = new double[numTimeSteps + 1];
+
+                for (int j = 0; j < simulationsForThisThread; j++) {
+                    // Check if the task has been cancelled
+                    if (isCancelled()) {
+                        break;
+                    }
+                    int simulationIdx = startSimulation + j;
+
+                    // Generate a simulated price path
+                    pathGenerator.generatePricePath(path, dt);
+                    System.arraycopy(path, 0, pricePaths[simulationIdx], 0, numTimeSteps + 1);
+
+                    // Initialize cash flows to zero
+                    Arrays.fill(cashFlows[simulationIdx], 0.0);
+
+                    // Update the progress less frequently to reduce overhead
+                    int completed = simulationsCompleted.incrementAndGet();
+                    if (completed % Math.max(1, numSimulations / 100) == 0 || completed == numSimulations) { // Update progress at 1% increments
+                        updateProgress(completed, numSimulations);
+                    }
                 }
                 return null;
             });
@@ -232,8 +249,8 @@ public class MonteCarloSimulator extends Task<Double> {
 
         // Initialize cash flows at maturity based on payoff
         for (int i = 0; i < numSimulations; i++) {
-            double S_T = pricePaths.get(i)[numTimeSteps];
-            cashFlows.get(i)[numTimeSteps] = calculateImmediatePayoff(S_T);
+            double S_T = pricePaths[i][numTimeSteps];
+            cashFlows[i][numTimeSteps] = calculateImmediatePayoff(S_T);
         }
 
         // Perform backward induction to determine optimal exercise strategy
@@ -241,11 +258,13 @@ public class MonteCarloSimulator extends Task<Double> {
             if (isCancelled()) {
                 break;
             }
+            final double rate = marketData.getInterestRateCurve().getRate(t * dt);
+            final double discountFactor = Math.exp(-rate * dt);
+
             if (!exerciseSteps.contains(t)) {
                 // Not an exercise date, discount future cash flows
                 for (int i = 0; i < numSimulations; i++) {
-                    double rate = marketData.getInterestRateCurve().getRate(t * dt);
-                    cashFlows.get(i)[t] = cashFlows.get(i)[t + 1] * Math.exp(-rate * dt);
+                    cashFlows[i][t] = cashFlows[i][t + 1] * discountFactor;
                 }
                 continue;
             }
@@ -256,12 +275,11 @@ public class MonteCarloSimulator extends Task<Double> {
             List<Integer> inMoneyIndices = new ArrayList<>();
 
             for (int i = 0; i < numSimulations; i++) {
-                double S_t = pricePaths.get(i)[t];
+                double S_t = pricePaths[i][t];
                 double immediatePayoff = calculateImmediatePayoff(S_t);
 
                 if (immediatePayoff > 0) {
-                    double rate = marketData.getInterestRateCurve().getRate(t * dt);
-                    double discountedCashFlow = cashFlows.get(i)[t + 1] * Math.exp(-rate * dt);
+                    double discountedCashFlow = cashFlows[i][t + 1] * discountFactor;
                     inMoneyPrices.add(S_t);
                     inMoneyCashFlows.add(discountedCashFlow);
                     inMoneyIndices.add(i);
@@ -285,37 +303,37 @@ public class MonteCarloSimulator extends Task<Double> {
 
                     if (immediatePayoff >= continuationValue) {
                         // Optimal to exercise the option at this time step
-                        cashFlows.get(i)[t] = immediatePayoff;
+                        cashFlows[i][t] = immediatePayoff;
                         // Zero out future cash flows as the option has been exercised
-                        Arrays.fill(cashFlows.get(i), t + 1, cashFlows.get(i).length, 0.0);
+                        Arrays.fill(cashFlows[i], t + 1, cashFlows[i].length, 0.0);
                     } else {
                         // Continue holding the option, discount future cash flows
-                        double rate = marketData.getInterestRateCurve().getRate(t * dt);
-                        cashFlows.get(i)[t] = cashFlows.get(i)[t + 1] * Math.exp(-rate * dt);
+                        cashFlows[i][t] = cashFlows[i][t + 1] * discountFactor;
                     }
                 }
 
                 // For paths that are out-of-the-money, continue holding the option
+                Set<Integer> inMoneySet = new HashSet<>(inMoneyIndices);
                 for (int i = 0; i < numSimulations; i++) {
-                    if (!inMoneyIndices.contains(i)) {
-                        double rate = marketData.getInterestRateCurve().getRate(t * dt);
-                        cashFlows.get(i)[t] = cashFlows.get(i)[t + 1] * Math.exp(-rate * dt);
+                    if (!inMoneySet.contains(i)) {
+                        cashFlows[i][t] = cashFlows[i][t + 1] * discountFactor;
                     }
                 }
             } else {
                 // No in-the-money paths, discount future cash flows for all simulations
                 for (int i = 0; i < numSimulations; i++) {
-                    double rate = marketData.getInterestRateCurve().getRate(t * dt);
-                    cashFlows.get(i)[t] = cashFlows.get(i)[t + 1] * Math.exp(-rate * dt);
+                    cashFlows[i][t] = cashFlows[i][t + 1] * discountFactor;
                 }
             }
         }
 
         // Calculate the average option price by discounting the cash flows at the initial rate
         double optionPrice = 0.0;
+        double initialRate = marketData.getInterestRateCurve().getRate(0);
+        double initialDiscountFactor = Math.exp(-initialRate * (option.getMaturity() / numTimeSteps));
+
         for (int i = 0; i < numSimulations; i++) {
-            double rate = marketData.getInterestRateCurve().getRate(0);
-            optionPrice += cashFlows.get(i)[1] * Math.exp(-rate * (option.getMaturity() / 50.0));
+            optionPrice += cashFlows[i][1] * initialDiscountFactor;
         }
 
         optionPrice /= numSimulations;
@@ -331,11 +349,7 @@ public class MonteCarloSimulator extends Task<Double> {
      */
     private double calculatePayoff(double[] path) {
         double S_T = path[path.length - 1];
-        if (option.getOptionType() == OptionType.CALL) {
-            return Math.max(0.0, S_T - option.getStrikePrice());
-        } else {
-            return Math.max(0.0, option.getStrikePrice() - S_T);
-        }
+        return calculateImmediatePayoff(S_T);
     }
 
     /**

@@ -1,3 +1,4 @@
+// File: PathGeneratorTest.java
 package com.optionpricing.simulation;
 
 import com.optionpricing.model.*;
@@ -19,14 +20,21 @@ public class PathGeneratorTest {
         Option option = new EuropeanOption(100.0, 1.0, OptionType.CALL);
 
         PathGenerator generator = new PathGenerator(marketData, option, 100);
-        double[] prices = generator.generatePricePath(100, 0.01);
 
-        assertEquals(101, prices.length);
-        assertEquals(100.0, prices[0]);
+        // Prepare the prices array
+        int numTimeSteps = 100;
+        double dt = option.getMaturity() / numTimeSteps;
+        double[] prices = new double[numTimeSteps + 1];
+
+        // Call the updated generatePricePath method
+        generator.generatePricePath(prices, dt);
+
+        assertEquals(numTimeSteps + 1, prices.length);
+        assertEquals(100.0, prices[0], 1e-6);
 
         // Check that prices are positive
         for (double price : prices) {
-            assertTrue(price > 0);
+            assertTrue(price > 0, "Price should be positive");
         }
     }
 }

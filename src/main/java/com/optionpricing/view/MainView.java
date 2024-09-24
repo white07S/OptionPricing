@@ -1,4 +1,3 @@
-// File: MainView.java
 package com.optionpricing.view;
 
 import com.optionpricing.model.*;
@@ -73,9 +72,22 @@ public class MainView {
         // Event handler for the calculate button
         calculateButton.setOnAction(event -> {
             try {
+                // Reset the result label and progress bar
+                resultLabel.setText("Calculating...");
+
+                // Unbind the progress property before resetting
+                progressBar.progressProperty().unbind();
+                progressBar.setProgress(0);
+                progressBar.setVisible(true);
+
+                // Record the start time
+                long startTime = System.nanoTime();
+
                 // Read and validate inputs
                 OptionInput optionInput = parseInputs();
                 if (optionInput == null) {
+                    progressBar.setVisible(false);
+                    resultLabel.setText("Option Price: ");
                     return; // Parsing failed, error already shown
                 }
 
@@ -97,17 +109,27 @@ public class MainView {
 
                 // Define behavior upon successful simulation
                 simulationTask.setOnSucceeded(e -> {
-                    double optionPrice = simulationTask.getValue();
-                    resultLabel.setText(String.format("Option Price: %.4f", optionPrice));
+                    // Unbind progress property
+                    progressBar.progressProperty().unbind();
                     progressBar.setVisible(false);
+
+                    // Compute the elapsed time in seconds
+                    long endTime = System.nanoTime();
+                    double elapsedTimeInSeconds = (endTime - startTime) / 1_000_000_000.0;
+
+                    double optionPrice = simulationTask.getValue();
+                    resultLabel.setText(String.format("Option Price: %.4f\nTime Taken: %.2f seconds", optionPrice, elapsedTimeInSeconds));
                 });
 
                 // Define behavior if the simulation fails
                 simulationTask.setOnFailed(e -> {
+                    // Unbind progress property
+                    progressBar.progressProperty().unbind();
+                    progressBar.setVisible(false);
+
                     Throwable exception = simulationTask.getException();
                     showAlert("Simulation Error", "An error occurred during simulation: " + exception.getMessage(), AlertType.ERROR);
                     resultLabel.setText("Option Price: ");
-                    progressBar.setVisible(false);
                     LOGGER.log(Level.SEVERE, "Simulation failed", exception);
                 });
 
@@ -463,9 +485,9 @@ public class MainView {
          * @param threadPoolSize   the number of threads to use for simulations
          */
         public OptionInput(ExerciseType exerciseType, OptionType optionType, List<Double> exerciseDates,
-                          double strikePrice, double maturity, InterestRateCurve interestRateCurve,
-                          double volatility, double drift, double lambda, double gamma,
-                          double initialPrice, int numSimulations, int threadPoolSize) {
+                           double strikePrice, double maturity, InterestRateCurve interestRateCurve,
+                           double volatility, double drift, double lambda, double gamma,
+                           double initialPrice, int numSimulations, int threadPoolSize) {
             this.exerciseType = exerciseType;
             this.optionType = optionType;
             this.exerciseDates = exerciseDates;

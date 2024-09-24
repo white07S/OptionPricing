@@ -73,15 +73,15 @@ The option price is calculated using the discounted expected payoff under the ri
 
 - **Call Option**:
 
-  $$
+$$
   C = e^{-rT} \mathbb{E}\left[ \max(0, S_T - K) \right]
-  $$
+$$
 
 - **Put Option**:
 
-  $$
+$$
   P = e^{-rT} \mathbb{E}\left[ \max(0, K - S_T) \right]
-  $$
+$$
 
 #### For American and Bermudan Options
 
@@ -131,9 +131,9 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 - Implements the asset model, including drift, diffusion, and jump components.
 - Uses the Euler-Maruyama method for discretization:
 
-  $$
+$$
   S_{t+\Delta t} = S_t \exp\left( \left( \mu - \frac{\sigma^2}{2} - \lambda \ln(1+\gamma) \right) \Delta t + \sigma \Delta W_t + \ln(1+\gamma) N_{\Delta t} \right)
-  $$
+$$
 
   - $\Delta W_t$ is the Wiener increment.
   - $N_{\Delta t}$ is the number of jumps in the interval $\Delta t$, sampled from a Poisson distribution with parameter $\lambda \Delta t$.

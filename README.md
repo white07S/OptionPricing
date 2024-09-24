@@ -9,7 +9,7 @@
 This JavaFX application is designed to price **American**, **Bermudan**, and **European** options using Monte Carlo simulations. It allows users to define option characteristics and market parameters, including:
 
 - **Option Features**: Payoff type (Call/Put), Maturity, Strike Price, Exercise Type (European, American, Bermudan), and Exercise Dates for Bermudan options.
-- **Market Data**: Interest rate curve, Volatility, Drift, Jump Intensity (\( \lambda \)), and Jump Size (\( \gamma \)).
+- **Market Data**: Interest rate curve, Volatility, Drift, Jump Intensity ($\lambda$), and Jump Size ($\gamma$).
 - **Simulation Settings**: Number of simulations (default is 1 million) and thread pool size for multi-threading (default is 10).
 
 The application efficiently computes the option price by leveraging multi-threading and provides a user-friendly interface to input parameters and display results.
@@ -18,19 +18,19 @@ The application efficiently computes the option price by leveraging multi-thread
 
 ### Underlying Asset Model
 
-The underlying asset price \( S_t \) is modeled using a stochastic differential equation (SDE) that incorporates drift, diffusion, and jump components:
+The underlying asset price $S_t$ is modeled using a stochastic differential equation (SDE) that incorporates drift, diffusion, and jump components:
 
-\[
-\frac{dS_t}{S_t} = \mu dt + \sigma dW_t + \gamma dq_t
-\]
+$$
+\frac{dS_t}{S_t} = \mu \, dt + \sigma \, dW_t + \gamma \, dq_t
+$$
 
 Where:
 
-- \( \mu \) is the constant drift term.
-- \( \sigma \) is the constant volatility (diffusion term).
-- \( dW_t \) is a Wiener process (standard Brownian motion).
-- \( \gamma \) is the jump size (constant).
-- \( dq_t \) is a Poisson process with intensity \( \lambda \) representing the number of jumps.
+- $\mu$ is the constant drift term.
+- $\sigma$ is the constant volatility (diffusion term).
+- $dW_t$ is a Wiener process (standard Brownian motion).
+- $\gamma$ is the jump size (constant).
+- $dq_t$ is a Poisson process with intensity $\lambda$ representing the number of jumps.
 
 ### Solving the SDE Using Ito's Lemma
 
@@ -40,28 +40,28 @@ To find the diffusion process, we apply Ito's Lemma to solve the SDE with jumps.
 
 First, consider the SDE without the jump component:
 
-\[
-\frac{dS_t}{S_t} = \mu dt + \sigma dW_t
-\]
+$$
+\frac{dS_t}{S_t} = \mu \, dt + \sigma \, dW_t
+$$
 
 This is a standard geometric Brownian motion, and its solution is:
 
-\[
+$$
 S_t = S_0 \exp\left( \left( \mu - \frac{\sigma^2}{2} \right) t + \sigma W_t \right)
-\]
+$$
 
 #### Incorporating Jumps
 
 Including the jump component, the solution becomes:
 
-\[
+$$
 S_t = S_0 \exp\left( \left( \mu - \frac{\sigma^2}{2} - \lambda \ln(1 + \gamma) \right) t + \sigma W_t + N_t \ln(1 + \gamma) \right)
-\]
+$$
 
 Where:
 
-- \( N_t \) is a Poisson process counting the number of jumps up to time \( t \).
-- \( \ln(1 + \gamma) \) is the logarithm of the relative jump size.
+- $N_t$ is a Poisson process counting the number of jumps up to time $t$.
+- $\ln(1 + \gamma)$ is the logarithm of the relative jump size.
 
 This equation accounts for the continuous diffusion and the discrete jumps in the asset price.
 
@@ -73,15 +73,15 @@ The option price is calculated using the discounted expected payoff under the ri
 
 - **Call Option**:
 
-  \[
+  $$
   C = e^{-rT} \mathbb{E}\left[ \max(0, S_T - K) \right]
-  \]
+  $$
 
 - **Put Option**:
 
-  \[
+  $$
   P = e^{-rT} \mathbb{E}\left[ \max(0, K - S_T) \right]
-  \]
+  $$
 
 #### For American and Bermudan Options
 
@@ -109,11 +109,11 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 
 - Encapsulates market parameters:
   - Interest rate curve (`InterestRateCurve`).
-  - Volatility (`\sigma`).
-  - Drift (`\mu`).
-  - Jump intensity (`\lambda`).
-  - Jump size (`\gamma`).
-  - Initial asset price (`S_0`).
+  - Volatility ($\sigma$).
+  - Drift ($\mu$).
+  - Jump intensity ($\lambda$).
+  - Jump size ($\gamma$).
+  - Initial asset price ($S_0$).
 
 #### 2. `Option` Classes
 
@@ -130,11 +130,13 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 - Generates simulated price paths for the underlying asset.
 - Implements the asset model, including drift, diffusion, and jump components.
 - Uses the Euler-Maruyama method for discretization:
-  \[
+
+  $$
   S_{t+\Delta t} = S_t \exp\left( \left( \mu - \frac{\sigma^2}{2} - \lambda \ln(1+\gamma) \right) \Delta t + \sigma \Delta W_t + \ln(1+\gamma) N_{\Delta t} \right)
-  \]
-  - \( \Delta W_t \) is the Wiener increment.
-  - \( N_{\Delta t} \) is the number of jumps in the interval \( \Delta t \), sampled from a Poisson distribution with parameter \( \lambda \Delta t \).
+  $$
+
+  - $\Delta W_t$ is the Wiener increment.
+  - $N_{\Delta t}$ is the number of jumps in the interval $\Delta t$, sampled from a Poisson distribution with parameter $\lambda \Delta t$.
 
 #### 5. `MonteCarloSimulator` Class
 
@@ -167,16 +169,16 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 - **Option Features**:
   - **Exercise Type**: European, American, Bermudan.
   - **Option Type**: Call or Put.
-  - **Strike Price** (`K`).
-  - **Maturity** (`T` in years).
+  - **Strike Price** ($K$).
+  - **Maturity** ($T$ in years).
   - **Exercise Dates**: For Bermudan options (comma-separated list).
 - **Market Data**:
   - **Interest Rate Curve**: Maturity:Rate pairs (e.g., `0.5:0.02,1:0.025`).
-  - **Volatility** (`\sigma`).
-  - **Drift** (`\mu`).
-  - **Lambda** (`\lambda`): Jump intensity.
-  - **Gamma** (`\gamma`): Jump size.
-  - **Initial Price** (`S_0`).
+  - **Volatility** ($\sigma$).
+  - **Drift** ($\mu$).
+  - **Lambda** ($\lambda$): Jump intensity.
+  - **Gamma** ($\gamma$): Jump size.
+  - **Initial Price** ($S_0$).
 - **Simulation Settings**:
   - **Number of Simulations**: Default is 1,000,000.
   - **Thread Pool Size**: Default is 10.
@@ -184,18 +186,23 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 ### Usage Steps
 
 1. **Launch the Application**:
+
    ```bash
    java -jar OptionPricing-0.0.1-SNAPSHOT.jar
    ```
+
 2. **Enter Option Parameters**:
    - Select the exercise type and option type.
    - Input the strike price and maturity.
    - For Bermudan options, provide the exercise dates.
+
 3. **Enter Market Data**:
    - Input the interest rate curve.
    - Enter volatility, drift, lambda, gamma, and the initial asset price.
+
 4. **Configure Simulation Settings**:
    - Set the number of simulations and thread pool size as desired.
+
 5. **Run the Simulation**:
    - Click on "Calculate Option Price."
    - The progress bar will indicate the simulation progress.
@@ -209,13 +216,13 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
 
 ### Running the Application
 
-- **Using the JAR File**:
+- **Using Maven**:
 
   ```bash
   mvn clean javafx:run
   ```
 
-- Ensure that the `OptionPricing-0.0.1-SNAPSHOT.jar` file is in your current directory.
+  Ensure that the `OptionPricing-0.0.1-SNAPSHOT.jar` file is in your current directory.
 
 ## Conclusion
 
@@ -228,4 +235,3 @@ The Option Pricing Application provides a robust solution for pricing different 
 - **Providing a user-friendly interface** that allows for flexible input of option characteristics and market data.
 
 This application demonstrates the practical application of advanced mathematical concepts and numerical methods in financial engineering, offering a valuable tool for option pricing analysis.
-

@@ -18,4 +18,11 @@ public class OptionTest {
             new EuropeanOption(0.0, 1.0, OptionType.PUT);
         });
     }
+
+    @Test
+    public void testNullOptionType() {
+        assertThrows(NullPointerException.class, () -> {
+            new EuropeanOption(100.0, 1.0, null);
+        });
+    }
 }

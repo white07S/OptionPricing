@@ -1,4 +1,3 @@
-// File: EuropeanOption.java
 package com.optionpricing.model;
 
 /**

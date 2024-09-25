@@ -1,4 +1,3 @@
-// File: MonteCarloSimulator.java
 package com.optionpricing.simulation;
 
 import com.optionpricing.model.*;
@@ -401,7 +400,7 @@ public class MonteCarloSimulator extends Task<Double> {
             // Estimate the regression parameters
             beta = regression.estimateRegressionParameters(); // [intercept, beta1, beta2]
         } catch (Exception e) {
-            // Log the exception and default to zero continuation value if regression fails
+            // Log the exception and default to zero continuation value if regression fails (not a perfect solution)
             LOGGER.log(Level.WARNING, "Regression failed, defaulting to zero continuation value.", e);
             return new double[]{0.0, 0.0, 0.0};
         }

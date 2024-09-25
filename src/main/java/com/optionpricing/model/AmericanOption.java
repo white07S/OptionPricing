@@ -1,4 +1,3 @@
-// File: AmericanOption.java
 package com.optionpricing.model;
 
 /**

@@ -10,7 +10,6 @@ import javafx.scene.control.Alert.AlertType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.logging.Level;
@@ -41,9 +40,11 @@ public class MainView {
     private TextField driftField;
     private TextField lambdaField;
     private TextField gammaField;
+    private TextField jumpVolatilityField;
     private TextField initialPriceField;
     private TextField simulationsField;
     private TextField threadsField;
+    private CheckBox riskNeutralCheckBox;
 
     /**
      * Constructs the MainView and initializes all UI components.
@@ -94,7 +95,7 @@ public class MainView {
                 // Create MarketData instance based on user inputs
                 MarketData marketData = new MarketData(optionInput.interestRateCurve,
                         optionInput.volatility, optionInput.drift, optionInput.lambda,
-                        optionInput.gamma, optionInput.initialPrice);
+                        optionInput.gamma, optionInput.jumpVolatility, optionInput.initialPrice, optionInput.riskNeutral);
 
                 // Create Option instance based on user inputs
                 Option option = createOption(optionInput);
@@ -169,7 +170,7 @@ public class MainView {
         optionTypeCombo.setValue("Call");
 
         exerciseDatesLabel = new Label("Exercise Dates (years, comma-separated):");
-        exerciseDatesField = new TextField("0.5,1");
+        exerciseDatesField = new TextField("0.5,0.8");
         exerciseDatesLabel.setVisible(false);
         exerciseDatesField.setVisible(false);
 
@@ -188,9 +189,22 @@ public class MainView {
         driftField = new TextField("0.05");
         lambdaField = new TextField("0.1");
         gammaField = new TextField("0.02");
+        jumpVolatilityField = new TextField("0.1");
         initialPriceField = new TextField("100");
         simulationsField = new TextField("1000000");
         threadsField = new TextField("10");
+
+        // Risk-neutral checkbox
+        riskNeutralCheckBox = new CheckBox("Simulate under Risk-Neutral Measure");
+        riskNeutralCheckBox.setSelected(true); // Default to risk-neutral
+
+        // Add listener to riskNeutralCheckBox to disable driftField when selected
+        riskNeutralCheckBox.selectedProperty().addListener((observable, oldValue, newValue) -> {
+            driftField.setDisable(newValue); // Disable driftField when risk-neutral is selected
+        });
+
+        // Disable driftField initially if risk-neutral is selected
+        driftField.setDisable(riskNeutralCheckBox.isSelected());
 
         // Add components to grid
         int row = 0;
@@ -224,6 +238,9 @@ public class MainView {
         grid.add(new Label("Gamma (γ):"), 0, row);
         grid.add(gammaField, 1, row++);
 
+        grid.add(new Label("Jump Volatility (δ):"), 0, row);
+        grid.add(jumpVolatilityField, 1, row++);
+
         grid.add(new Label("Initial Price (S₀):"), 0, row);
         grid.add(initialPriceField, 1, row++);
 
@@ -232,6 +249,8 @@ public class MainView {
 
         grid.add(new Label("Thread Pool Size:"), 0, row);
         grid.add(threadsField, 1, row++);
+
+        grid.add(riskNeutralCheckBox, 1, row++); // Add the risk-neutral checkbox
 
         return grid;
     }
@@ -253,9 +272,11 @@ public class MainView {
             String driftStr = driftField.getText();
             String lambdaStr = lambdaField.getText();
             String gammaStr = gammaField.getText();
+            String jumpVolatilityStr = jumpVolatilityField.getText();
             String initialPriceStr = initialPriceField.getText();
             String simulationsStr = simulationsField.getText();
             String threadsStr = threadsField.getText();
+            boolean riskNeutral = riskNeutralCheckBox.isSelected();
 
             // Parse enums
             ExerciseType exerciseType = ExerciseType.valueOf(exerciseTypeStr.toUpperCase());
@@ -265,9 +286,13 @@ public class MainView {
             double strikePrice = parsePositiveDouble(strikePriceStr, "Strike Price");
             double maturity = parsePositiveDouble(maturityStr, "Maturity");
             double volatility = parseNonNegativeDouble(volatilityStr, "Volatility");
-            double drift = parseDouble(driftStr, "Drift");
+            double drift = 0.0;
+            if (!riskNeutral) {
+                drift = parseDouble(driftStr, "Drift");
+            }
             double lambda = parseNonNegativeDouble(lambdaStr, "Lambda");
             double gamma = parseNonNegativeDouble(gammaStr, "Gamma");
+            double jumpVolatility = parseNonNegativeDouble(jumpVolatilityStr, "Jump Volatility");
             double initialPrice = parsePositiveDouble(initialPriceStr, "Initial Price");
             int numSimulations = parsePositiveInt(simulationsStr, "Number of Simulations");
             int threadPoolSize = parsePositiveInt(threadsStr, "Thread Pool Size");
@@ -296,8 +321,8 @@ public class MainView {
             // Return a new OptionInput object containing all parsed inputs
             return new OptionInput(exerciseType, optionType, exerciseDates,
                     strikePrice, maturity, interestRateCurve,
-                    volatility, drift, lambda, gamma,
-                    initialPrice, numSimulations, threadPoolSize);
+                    volatility, drift, lambda, gamma, jumpVolatility,
+                    initialPrice, numSimulations, threadPoolSize, riskNeutral);
 
         } catch (Exception e) {
             // Show an alert to the user if input parsing fails
@@ -463,9 +488,11 @@ public class MainView {
         double drift;
         double lambda;
         double gamma;
+        double jumpVolatility;
         double initialPrice;
         int numSimulations;
         int threadPoolSize;
+        boolean riskNeutral;
 
         /**
          * Constructs an OptionInput with all required parameters.
@@ -479,15 +506,17 @@ public class MainView {
          * @param volatility       the volatility of the underlying asset
          * @param drift            the drift rate of the underlying asset
          * @param lambda           the intensity of the Poisson process (for jump processes)
-         * @param gamma            the jump size factor
+         * @param gamma            the mean jump size factor
+         * @param jumpVolatility   the volatility of the jump sizes
          * @param initialPrice     the initial price of the underlying asset
          * @param numSimulations   the number of Monte Carlo simulations to run
          * @param threadPoolSize   the number of threads to use for simulations
+         * @param riskNeutral      whether to simulate under the risk-neutral measure
          */
         public OptionInput(ExerciseType exerciseType, OptionType optionType, List<Double> exerciseDates,
                            double strikePrice, double maturity, InterestRateCurve interestRateCurve,
-                           double volatility, double drift, double lambda, double gamma,
-                           double initialPrice, int numSimulations, int threadPoolSize) {
+                           double volatility, double drift, double lambda, double gamma, double jumpVolatility,
+                           double initialPrice, int numSimulations, int threadPoolSize, boolean riskNeutral) {
             this.exerciseType = exerciseType;
             this.optionType = optionType;
             this.exerciseDates = exerciseDates;
@@ -498,9 +527,11 @@ public class MainView {
             this.drift = drift;
             this.lambda = lambda;
             this.gamma = gamma;
+            this.jumpVolatility = jumpVolatility;
             this.initialPrice = initialPrice;
             this.numSimulations = numSimulations;
             this.threadPoolSize = threadPoolSize;
+            this.riskNeutral = riskNeutral;
         }
     }
 }

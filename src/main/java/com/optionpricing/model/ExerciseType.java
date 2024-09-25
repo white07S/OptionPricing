@@ -1,4 +1,3 @@
-// File: ExerciseType.java
 package com.optionpricing.model;
 
 /**

@@ -1,4 +1,3 @@
-// File: InterestRateCurve.java
 package com.optionpricing.model;
 
 import java.util.Collections;

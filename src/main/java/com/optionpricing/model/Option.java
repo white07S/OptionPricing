@@ -1,4 +1,3 @@
-// File: Option.java
 package com.optionpricing.model;
 
 import java.util.Objects;

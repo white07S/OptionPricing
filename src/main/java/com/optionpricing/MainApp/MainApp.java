@@ -1,4 +1,3 @@
-// File: MainApp.java
 package com.optionpricing.MainApp;
 
 import com.optionpricing.view.MainView;

@@ -1,4 +1,3 @@
-// File: OptionType.java
 package com.optionpricing.model;
 
 /**

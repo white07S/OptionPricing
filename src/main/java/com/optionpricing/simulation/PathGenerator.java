@@ -1,4 +1,3 @@
-// File: PathGenerator.java
 package com.optionpricing.simulation;
 
 import com.optionpricing.model.MarketData;
@@ -18,6 +17,7 @@ public class PathGenerator {
     private final double volatility;
     private final double lambda;
     private final double gamma;
+    private final double jumpVolatility;
 
     /**
      * Constructs a PathGenerator with the specified market data and option.
@@ -33,6 +33,7 @@ public class PathGenerator {
         this.volatility = marketData.getVolatility();
         this.lambda = marketData.getLambda();
         this.gamma = marketData.getGamma();
+        this.jumpVolatility = marketData.getJumpVolatility();
     }
 
     /**
@@ -51,7 +52,19 @@ public class PathGenerator {
 
         double sqrtDt = Math.sqrt(dt);
         double volSquared = volatility * volatility;
-        double logOnePlusGamma = Math.log(1 + gamma);
+
+        // Parameters for jump size distribution
+        double jumpVolatility = marketData.getJumpVolatility(); // σ_J
+        double gamma = marketData.getGamma(); // mean jump size (E[Y_i] - 1)
+        double lambda = marketData.getLambda();
+        double muJ = Math.log(1 + gamma) - 0.5 * jumpVolatility * jumpVolatility;
+
+        // Expected jump size E[Y_i] = 1 + gamma
+        // kappa = E[Y_i - 1] = gamma
+        double kappa = gamma;
+
+        boolean riskNeutral = marketData.isRiskNeutral();
+        double mu = marketData.getDrift();
 
         for (int i = 1; i <= numTimeSteps; i++) {
             double t = i * dt;
@@ -59,22 +72,27 @@ public class PathGenerator {
             double r = marketData.getInterestRateCurve().getRate(t);
 
             // Calculate the drift component adjusted for jump intensity and size
-            double drift = r - lambda * logOnePlusGamma - 0.5 * volSquared;
+            double drift = (riskNeutral ? r : mu) - lambda * kappa - 0.5 * volSquared;
 
             // Generate a Wiener process increment
             double dW = random.nextGaussian() * sqrtDt;
 
             // Determine the number of jumps using a Poisson distribution
-            int jumps = randomPoisson(lambda * dt, random);
+            int numJumps = randomPoisson(lambda * dt, random);
 
-            // Calculate the jump factor based on the number of jumps
-            double jumpFactor = Math.exp(jumps * logOnePlusGamma);
+            // Calculate the cumulative log of the jump factors
+            double sumLogYi = 0.0;
+            for (int j = 0; j < numJumps; j++) {
+                // Generate a random jump size from lognormal distribution
+                double lnYi = random.nextGaussian() * jumpVolatility + muJ;
+                sumLogYi += lnYi;
+            }
 
             // Calculate the change in the logarithm of the asset price
-            double dS = drift * dt + volatility * dW + Math.log(jumpFactor);
+            double dLogS = drift * dt + volatility * dW + sumLogYi;
 
             // Update the asset price
-            S *= Math.exp(dS);
+            S *= Math.exp(dLogS);
             prices[i] = S;
         }
     }

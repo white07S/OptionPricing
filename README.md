@@ -169,9 +169,9 @@ American and Bermudan options allow early exercise before maturity. Pricing thes
   - **Real-World Measure**: Drift is the user-provided drift minus the expected jump adjustment: $\theta = \mu - \lambda \kappa$.
 - Uses the Euler-Maruyama method for discretization:
 
-  $$
+$$
     S_{t+\Delta t} = S_t \cdot \exp\left( \left( \theta - \frac{\sigma^2}{2} \right) \Delta t + \sigma \Delta W_t + \sum_{i=1}^{N_{\Delta t}} Y_i \right)
-  $$
+$$
 
   - $\Delta W_t$ is the Wiener increment.
   - $N_{\Delta t}$ is the number of jumps in the interval $\Delta t$, sampled from a Poisson distribution with parameter $\lambda \Delta t$.
